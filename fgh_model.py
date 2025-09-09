@@ -29,7 +29,7 @@ class FGH(nn.Module):
 
         # 1. 初始映射到双曲空间
         x_tan = self.to_hyperbolic(x) # 先在欧几里得空间做线性变换
-        x_hyp = self.manifold.expmap0(x_tan, self.c) # 映射到双曲空间
+        x_hyp = self.manifold.expmap0(x_tan) # 映射到双曲空间
 
         # 2. 通过双曲图卷积层
         for conv in self.convs:
@@ -37,11 +37,11 @@ class FGH(nn.Module):
 
         # 3. 图级读出（READOUT）（公式10）
         # 将所有节点映射到切空间，求和，再映射回双曲空间
-        x_tan_readout = self.manifold.logmap0(x_hyp, self.c)
+        x_tan_readout = self.manifold.logmap0(x_hyp)
         graph_embedding_tan = global_mean_pool(x_tan_readout, batch) # 在切空间进行全局平均池化
-        graph_embedding_hyp = self.manifold.expmap0(graph_embedding_tan, self.c)
+        graph_embedding_hyp = self.manifold.expmap0(graph_embedding_tan)
 
         # 4. 分类（在切空间进行）
-        graph_embedding_final_tan = self.manifold.logmap0(graph_embedding_hyp, self.c)
+        graph_embedding_final_tan = self.manifold.logmap0(graph_embedding_hyp)
         out = self.classifier(graph_embedding_final_tan)
         return torch.sigmoid(out) # 二分类输出

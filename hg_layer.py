@@ -28,7 +28,7 @@ class HyperbolicGraphLayer(MessagePassing):
     def forward(self, x, edge_index):
         # x: 双曲空间中的节点特征 [num_nodes, dim]
         # 1. 将双曲特征映射到切空间（对数映射）
-        x_tan = self.manifold.logmap0(x, self.c) # [num_nodes, dim]
+        x_tan = self.manifold.logmap0(x) # [num_nodes, dim]
 
         # 2. 在切空间中进行特征变换 (公式 3)
         h_tan = self.linear(x_tan) # 欧几里得变换
@@ -36,7 +36,7 @@ class HyperbolicGraphLayer(MessagePassing):
         h_tan = h_tan + self.manifold.transp0(self.bias, h_tan) # 注意：这里是一个简化
 
         # 3. 将变换后的特征映射回双曲空间（指数映射）
-        h_hyp = self.manifold.expmap0(h_tan, self.c) # [num_nodes, dim]
+        h_hyp = self.manifold.expmap0(h_tan) # [num_nodes, dim]
 
         # 4. 消息传递和聚合（将在message和aggregate方法中处理）
         # 注意：双曲空间的聚合需要在切空间进行
@@ -51,16 +51,16 @@ class HyperbolicGraphLayer(MessagePassing):
         #  index: 目标节点的索引，指示哪些消息应该聚合到哪个节点
 
         # 将双曲空间的特征投影到切空间进行聚合（公式8）
-        inputs_tan = self.manifold.logmap0(inputs, self.c)
+        inputs_tan = self.manifold.logmap0(inputs)
         aggregated_tan = super().aggregate(inputs_tan, index) # 在切空间进行均值聚合
-        aggregated_hyp = self.manifold.expmap0(aggregated_tan, self.c)
+        aggregated_hyp = self.manifold.expmap0(aggregated_tan)
         return aggregated_hyp
 
     def update(self, aggr_out):
         # aggr_out: 聚合后的消息
         # 这里可以添加非线性激活等操作（公式9）
         # 双曲非线性激活：映射到切空间->激活->映射回双曲空间
-        aggr_out_tan = self.manifold.logmap0(aggr_out, self.c)
+        aggr_out_tan = self.manifold.logmap0(aggr_out)
         aggr_out_tan = F.relu(aggr_out_tan)
-        aggr_out_hyp = self.manifold.expmap0(aggr_out_tan, self.c)
+        aggr_out_hyp = self.manifold.expmap0(aggr_out_tan)
         return aggr_out_hyp
