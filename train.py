@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch_geometric.data import Data, DataLoader
+from torch_geometric.data import Data
+from torch_geometric.loader import DataLoader
 from fgh_model import FGH
 
 # 假设我们已经有一个数据集 `dataset`，是Data对象的列表
