@@ -2,6 +2,7 @@ import os
 import argparse
 import csv
 import random
+from typing import Tuple
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -12,6 +13,10 @@ try:
     import matplotlib.pyplot as plt
 except Exception:
     plt = None
+try:
+    from sklearn import metrics as skm
+except Exception:
+    skm = None
 
 # 假设我们已经有一个数据集 `dataset`，是Data对象的列表
 # 每个Data对象有: x, edge_index, y (图标签)
@@ -45,7 +50,7 @@ def _split_dataset(ds, val_ratio=0.2, seed=42):
         (val_set if i in val_idx else train_set).append(d)
     return train_set, val_set
 
-def _compute_metrics(logits, labels):
+def _compute_metrics(logits, labels) -> Tuple[float, float, float]:
     with torch.no_grad():
         probs = torch.sigmoid(logits).detach().cpu().view(-1)
         preds = (probs >= 0.5).long()
@@ -58,7 +63,15 @@ def _compute_metrics(logits, labels):
         precision = tp / max(1, tp + fp)
         recall = tp / max(1, tp + fn)
         f1 = 2 * precision * recall / max(1e-8, (precision + recall))
-    return acc, f1
+        # ROC AUC（若可用）
+        try:
+            if skm is not None and labels.unique().numel() > 1:
+                auc = float(skm.roc_auc_score(labels.numpy(), probs.numpy()))
+            else:
+                auc = 0.0
+        except Exception:
+            auc = 0.0
+    return acc, f1, auc
 
 # 使用geoopt提供的优化器来优化流形参数（如bias）
 # optimizer = geoopt.optim.RiemannianAdam(model.parameters(), lr=0.001)
@@ -76,6 +89,7 @@ def train_one_setting(c_value: float, input_dim: int, hidden_dim: int, output_di
     best_val_loss = float('inf')
     best_val_acc = 0.0
     best_val_f1 = 0.0
+    best_val_auc = 0.0
     history = []
 
     for epoch in range(epochs):
@@ -107,18 +121,19 @@ def train_one_setting(c_value: float, input_dim: int, hidden_dim: int, output_di
         if all_logits:
             logits_cat = torch.cat(all_logits, dim=0)
             labels_cat = torch.cat(all_labels, dim=0)
-            val_acc, val_f1 = _compute_metrics(logits_cat, labels_cat)
+            val_acc, val_f1, val_auc = _compute_metrics(logits_cat, labels_cat)
         else:
-            val_acc, val_f1 = 0.0, 0.0
+            val_acc, val_f1, val_auc = 0.0, 0.0, 0.0
 
         history.append(avg_train_loss)
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             best_val_acc = val_acc
             best_val_f1 = val_f1
-        print(f'c={c_value} | seed={seed} | Epoch {epoch} | train_loss: {avg_train_loss:.6f} | val_loss: {avg_val_loss:.6f} | val_acc: {val_acc:.4f} | val_f1: {val_f1:.4f}')
+            best_val_auc = val_auc
+        print(f'c={c_value} | seed={seed} | Epoch {epoch} | train_loss: {avg_train_loss:.6f} | val_loss: {avg_val_loss:.6f} | val_acc: {val_acc:.4f} | val_f1: {val_f1:.4f} | val_auc: {val_auc:.4f}')
 
-    return best_val_loss, best_val_acc, best_val_f1, history
+    return best_val_loss, best_val_acc, best_val_f1, best_val_auc, history
 
 def parse_c_list(c_list_str: str):
     items = [s.strip() for s in c_list_str.split(',') if s.strip()]
@@ -150,7 +165,7 @@ def main():
     for c_value in c_values:
         for run in range(args.runs):
             seed = args.seed_base + run
-            best_val_loss, best_val_acc, best_val_f1, history = train_one_setting(
+            best_val_loss, best_val_acc, best_val_f1, best_val_auc, history = train_one_setting(
                 c_value=c_value,
                 input_dim=args.input_dim,
                 hidden_dim=args.hidden_dim,
@@ -169,6 +184,7 @@ def main():
                 'best_val_loss': best_val_loss,
                 'best_val_acc': best_val_acc,
                 'best_val_f1': best_val_f1,
+                'best_val_auc': best_val_auc,
             })
 
             # 保存单条曲线
@@ -188,7 +204,7 @@ def main():
     # 保存 CSV（包含多次重复与验证集指标）
     csv_path = os.path.join(args.output_dir, 'scan_c_results.csv')
     with open(csv_path, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['method', 'c', 'run', 'seed', 'best_val_loss', 'best_val_acc', 'best_val_f1'])
+        writer = csv.DictWriter(f, fieldnames=['method', 'c', 'run', 'seed', 'best_val_loss', 'best_val_acc', 'best_val_f1', 'best_val_auc'])
         writer.writeheader()
         for row in results:
             writer.writerow(row)
