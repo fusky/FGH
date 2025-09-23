@@ -1,1 +1,1 @@
-The code of FGH, coming soon.
+The code of FGH.
