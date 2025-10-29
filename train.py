@@ -18,18 +18,15 @@ try:
 except Exception:
     skm = None
 
-# 假设我们已经有一个数据集 `dataset`，是Data对象的列表
-# 每个Data对象有: x, edge_index, y (图标签)
-# 这里提供一个可运行的合成数据集示例
 def build_synthetic_dataset(num_graphs=100, num_nodes=10, input_dim=768):
     dataset = []
     for i in range(num_graphs):
         x = torch.randn(num_nodes, input_dim)
-        # 构造一条简单链式边
+
         src = torch.arange(0, num_nodes - 1, dtype=torch.long)
         dst = torch.arange(1, num_nodes, dtype=torch.long)
         edge_index = torch.stack([torch.cat([src, dst]), torch.cat([dst, src])], dim=0)
-        y = torch.randint(0, 2, (1,), dtype=torch.long)  # 图级标签，二分类
+        y = torch.randint(0, 2, (1,), dtype=torch.long) 
         data = Data(x=x, edge_index=edge_index, y=y)
         dataset.append(data)
     return dataset
@@ -63,7 +60,7 @@ def _compute_metrics(logits, labels) -> Tuple[float, float, float]:
         precision = tp / max(1, tp + fp)
         recall = tp / max(1, tp + fn)
         f1 = 2 * precision * recall / max(1e-8, (precision + recall))
-        # ROC AUC（若可用）
+
         try:
             if skm is not None and labels.unique().numel() > 1:
                 auc = float(skm.roc_auc_score(labels.numpy(), probs.numpy()))
@@ -72,9 +69,6 @@ def _compute_metrics(logits, labels) -> Tuple[float, float, float]:
         except Exception:
             auc = 0.0
     return acc, f1, auc
-
-# 使用geoopt提供的优化器来优化流形参数（如bias）
-# optimizer = geoopt.optim.RiemannianAdam(model.parameters(), lr=0.001)
 
 def train_one_setting(c_value: float, input_dim: int, hidden_dim: int, output_dim: int, num_layers: int, lr: float, epochs: int, batch_size: int, seed: int):
     torch.manual_seed(seed)
@@ -105,7 +99,6 @@ def train_one_setting(c_value: float, input_dim: int, hidden_dim: int, output_di
             total_loss += loss.item()
         avg_train_loss = total_loss / max(1, len(train_loader))
 
-        # 验证
         model.eval()
         val_loss = 0.0
         all_logits, all_labels = [], []
@@ -187,7 +180,6 @@ def main():
                 'best_val_auc': best_val_auc,
             })
 
-            # 保存单条曲线
             if plt is not None:
                 try:
                     plt.figure()
@@ -201,7 +193,6 @@ def main():
                 except Exception:
                     pass
 
-    # 保存 CSV（包含多次重复与验证集指标）
     csv_path = os.path.join(args.output_dir, 'scan_c_results.csv')
     with open(csv_path, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=['method', 'c', 'run', 'seed', 'best_val_loss', 'best_val_acc', 'best_val_f1', 'best_val_auc'])
@@ -209,10 +200,8 @@ def main():
         for row in results:
             writer.writerow(row)
 
-    # 按 c 汇总图（以 best_val_loss 为纵轴）
     if plt is not None and len(results) > 0:
         try:
-            # 取每个 c 的均值
             from collections import defaultdict
             acc_by_c = defaultdict(list)
             loss_by_c = defaultdict(list)

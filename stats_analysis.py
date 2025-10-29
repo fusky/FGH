@@ -99,14 +99,12 @@ def main():
 	print(f'Group A (n={len(vals_a)}): mean={mean_a:.6f}, std={std_a:.6f}')
 	print(f'Group B (n={len(vals_b)}): mean={mean_b:.6f}, std={std_b:.6f}')
 
-	# Welch t-test (unequal variances)
 	if scipy_available and len(vals_a) > 1 and len(vals_b) > 1:
 		t_stat, p_val = stats.ttest_ind(vals_a, vals_b, equal_var=False)
 		print(f'Welch t-test: t={t_stat:.6f}, p={p_val:.6g}')
 	else:
 		print('Welch t-test: unavailable (need scipy and n>1 for both groups)')
 
-	# Mann-Whitney U
 	if scipy_available and len(vals_a) > 0 and len(vals_b) > 0:
 		try:
 			u_stat, p_val_u = stats.mannwhitneyu(vals_a, vals_b, alternative='two-sided')
@@ -116,13 +114,11 @@ def main():
 	else:
 		print('Mann-Whitney U: unavailable')
 
-	# Effect sizes
 	d = cohens_d(vals_a, vals_b)
 	delta = cliffs_delta(vals_a, vals_b)
 	print(f"Cohen's d: {d:.6f}")
 	print(f"Cliff's delta: {delta:.6f}")
 
-	# Optional: simple 95% CI if numpy available
 	if except_available and len(vals_a) > 1:
 		se = np.std(vals_a, ddof=1) / math.sqrt(len(vals_a))
 		print(f'Group A approx 95% CI: [{mean_a - 1.96*se:.6f}, {mean_a + 1.96*se:.6f}]')
